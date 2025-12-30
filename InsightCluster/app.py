@@ -7,7 +7,6 @@ from utils.nltk_utils import descargar_recursos_nltk
 from procesamiento.limpieza_datos import limpiar_datos, columnas_esperadas
 from entrenamiento.entrenamiento import entrenar_kmeans
 
-# Descargar recursos NLTK al iniciar la app
 descargar_recursos_nltk()
 
 
