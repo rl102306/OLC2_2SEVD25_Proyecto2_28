@@ -1,7 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { BarChart3, TrendingUp, Users, MessageSquare, FileText, Loader2, AlertCircle } from "lucide-react"
+import { BarChart3, TrendingUp, Users, MessageSquare, FileText, Loader2, AlertCircle, Download } from "lucide-react"
+import html2canvas from "html2canvas"
+import jsPDF from "jspdf"
+
 
 const API_URL = "http://127.0.0.1:5000"
 
@@ -147,10 +150,119 @@ export function Reports() {
         { id: "descripciones" as ReportType, label: "Descripciones", icon: FileText },
     ]
 
+    const downloadJSON = (data: any, filename: string) => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${filename}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+    }
+
+    const downloadCurrentReportJSON = () => {
+        let data: any = null
+        let filename = ""
+
+        switch (activeReport) {
+            case "eficiencia":
+                data = eficienciaData
+                filename = "reporte-eficiencia"
+                break
+            case "distribucion":
+                data = distribucionData
+                filename = "reporte-distribucion"
+                break
+            case "perfil":
+                data = perfilData
+                filename = "reporte-perfil"
+                break
+            case "resenas":
+                data = resenasData
+                filename = "reporte-resenas"
+                break
+            case "descripciones":
+                data = descripcionesData
+                filename = "reporte-descripciones"
+                break
+        }
+
+        if (data) {
+            downloadJSON(data, filename)
+        }
+    }
+
+    const downloadCurrentReportPDF = async () => {
+        const element = document.getElementById("report-content")
+        if (!element) return
+
+        // Forzamos estilos compatibles
+        element.classList.add("export-pdf")
+
+        const canvas = await html2canvas(element, {
+            scale: 2,
+            backgroundColor: "rgb(2, 6, 23)",
+            useCORS: true,
+        })
+
+        element.classList.remove("export-pdf")
+
+        const imgData = canvas.toDataURL("image/png")
+
+        const pdf = new jsPDF("p", "mm", "a4")
+        const pdfWidth = pdf.internal.pageSize.getWidth()
+        const pdfHeight = pdf.internal.pageSize.getHeight()
+
+        const imgWidth = pdfWidth
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+        let heightLeft = imgHeight
+        let position = 0
+
+        // Primera página
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight)
+        heightLeft -= pdfHeight
+
+        // Páginas adicionales automáticas
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight
+            pdf.addPage()
+            pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight)
+            heightLeft -= pdfHeight
+        }
+
+        pdf.save(`reporte-${activeReport}.pdf`)
+    }
+
+
+
+    const downloadAllReports = async () => {
+        const allReports = {
+            eficiencia: eficienciaData,
+            distribucion: distribucionData,
+            perfil: perfilData,
+            resenas: resenasData,
+            descripciones: descripcionesData,
+        }
+
+        downloadJSON(allReports, "reportes-completos")
+    }
+
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="max-w-7xl mx-auto">
-                <h1 className="text-4xl font-bold text-white mb-8">Reportes del Modelo</h1>
+                <div className="flex items-center justify-between mb-8">
+                    <h1 className="text-4xl font-bold text-white">Reportes del Modelo</h1>
+                    <button
+                        onClick={downloadAllReports}
+                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                    >
+                        <Download className="w-5 h-5" />
+                        Descargar Todos
+                    </button>
+                </div>
 
                 {/* Selector de reportes */}
                 <div className="flex flex-wrap gap-3 mb-8">
@@ -161,8 +273,8 @@ export function Reports() {
                                 key={btn.id}
                                 onClick={() => setActiveReport(btn.id)}
                                 className={`px-4 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 ${activeReport === btn.id
-                                        ? "bg-indigo-600 text-white"
-                                        : "bg-slate-900/50 border border-slate-800 text-slate-300 hover:bg-slate-800"
+                                    ? "bg-indigo-600 text-white"
+                                    : "bg-slate-900/50 border border-slate-800 text-slate-300 hover:bg-slate-800"
                                     }`}
                             >
                                 <Icon className="w-5 h-5" />
@@ -189,213 +301,233 @@ export function Reports() {
                         </div>
                     </div>
                 ) : (
-                    <>
-                        {activeReport === "eficiencia" && eficienciaData && (
-                            <div className="space-y-6">
+                    <div>
+                        {!loading && !error && (
+                            <div className="flex gap-3 mb-6">
+                                <button
+                                    onClick={downloadCurrentReportPDF}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Descargar PDF
+                                </button>
+                                <button
+                                    onClick={downloadCurrentReportJSON}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Descargar JSON
+                                </button>
+                            </div>
+                        )}
+                        <div id="report-content">
+                            {activeReport === "eficiencia" && eficienciaData && (
+                                <div className="space-y-6" >
+                                    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
+                                        <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
+                                            <TrendingUp className="w-6 h-6 text-indigo-400" />
+                                            Métricas de Eficiencia del Modelo
+                                        </h2>
+
+                                        <div className="grid md:grid-cols-3 gap-6 mb-8">
+                                            <div className="bg-slate-800/50 rounded-lg p-6">
+                                                <p className="text-sm text-slate-400 mb-2">Silhouette Score</p>
+                                                <p className="text-3xl font-bold text-white mb-2">
+                                                    {eficienciaData.metricas.silhouette_score.toFixed(4)}
+                                                </p>
+                                                <p className="text-sm text-slate-300">{eficienciaData.interpretacion.silhouette}</p>
+                                            </div>
+
+                                            <div className="bg-slate-800/50 rounded-lg p-6">
+                                                <p className="text-sm text-slate-400 mb-2">Davies-Bouldin Index</p>
+                                                <p className="text-3xl font-bold text-white mb-2">
+                                                    {eficienciaData.metricas.davies_bouldin.toFixed(4)}
+                                                </p>
+                                                <p className="text-sm text-slate-300">{eficienciaData.interpretacion.davies_bouldin}</p>
+                                            </div>
+
+                                            <div className="bg-slate-800/50 rounded-lg p-6">
+                                                <p className="text-sm text-slate-400 mb-2">Calinski-Harabasz Score</p>
+                                                <p className="text-3xl font-bold text-white mb-2">
+                                                    {eficienciaData.metricas.calinski_harabasz.toFixed(2)}
+                                                </p>
+                                                <p className="text-sm text-slate-300">Índice de separación de clusters</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-indigo-900/20 border border-indigo-800/30 rounded-lg p-6">
+                                            <h3 className="text-lg font-semibold text-white mb-3">Interpretación</h3>
+                                            <ul className="space-y-2 text-slate-300">
+                                                <li className="flex items-start gap-2">
+                                                    <span className="text-indigo-400 mt-1">•</span>
+                                                    <span>
+                                                        <strong>Silhouette Score:</strong> Valores cercanos a 1 indican clusters bien definidos.{" "}
+                                                        {eficienciaData.interpretacion.silhouette}
+                                                    </span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="text-indigo-400 mt-1">•</span>
+                                                    <span>
+                                                        <strong>Davies-Bouldin:</strong> Valores más bajos son mejores.{" "}
+                                                        {eficienciaData.interpretacion.davies_bouldin}
+                                                    </span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="text-indigo-400 mt-1">•</span>
+                                                    <span>
+                                                        <strong>Calinski-Harabasz:</strong> Valores más altos indican mejor separación entre clusters.
+                                                    </span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeReport === "distribucion" && distribucionData && (
                                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
                                     <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
-                                        <TrendingUp className="w-6 h-6 text-indigo-400" />
-                                        Métricas de Eficiencia del Modelo
+                                        <BarChart3 className="w-6 h-6 text-indigo-400" />
+                                        Distribución de Clusters
                                     </h2>
 
-                                    <div className="grid md:grid-cols-3 gap-6 mb-8">
-                                        <div className="bg-slate-800/50 rounded-lg p-6">
-                                            <p className="text-sm text-slate-400 mb-2">Silhouette Score</p>
-                                            <p className="text-3xl font-bold text-white mb-2">
-                                                {eficienciaData.metricas.silhouette_score.toFixed(4)}
-                                            </p>
-                                            <p className="text-sm text-slate-300">{eficienciaData.interpretacion.silhouette}</p>
-                                        </div>
-
-                                        <div className="bg-slate-800/50 rounded-lg p-6">
-                                            <p className="text-sm text-slate-400 mb-2">Davies-Bouldin Index</p>
-                                            <p className="text-3xl font-bold text-white mb-2">
-                                                {eficienciaData.metricas.davies_bouldin.toFixed(4)}
-                                            </p>
-                                            <p className="text-sm text-slate-300">{eficienciaData.interpretacion.davies_bouldin}</p>
-                                        </div>
-
-                                        <div className="bg-slate-800/50 rounded-lg p-6">
-                                            <p className="text-sm text-slate-400 mb-2">Calinski-Harabasz Score</p>
-                                            <p className="text-3xl font-bold text-white mb-2">
-                                                {eficienciaData.metricas.calinski_harabasz.toFixed(2)}
-                                            </p>
-                                            <p className="text-sm text-slate-300">Índice de separación de clusters</p>
-                                        </div>
+                                    <div className="mb-6">
+                                        <p className="text-lg text-slate-300">
+                                            Total de clientes: <span className="font-bold text-white">{distribucionData.total_clientes}</span>
+                                        </p>
                                     </div>
 
-                                    <div className="bg-indigo-900/20 border border-indigo-800/30 rounded-lg p-6">
-                                        <h3 className="text-lg font-semibold text-white mb-3">Interpretación</h3>
-                                        <ul className="space-y-2 text-slate-300">
-                                            <li className="flex items-start gap-2">
-                                                <span className="text-indigo-400 mt-1">•</span>
-                                                <span>
-                                                    <strong>Silhouette Score:</strong> Valores cercanos a 1 indican clusters bien definidos.{" "}
-                                                    {eficienciaData.interpretacion.silhouette}
-                                                </span>
-                                            </li>
-                                            <li className="flex items-start gap-2">
-                                                <span className="text-indigo-400 mt-1">•</span>
-                                                <span>
-                                                    <strong>Davies-Bouldin:</strong> Valores más bajos son mejores.{" "}
-                                                    {eficienciaData.interpretacion.davies_bouldin}
-                                                </span>
-                                            </li>
-                                            <li className="flex items-start gap-2">
-                                                <span className="text-indigo-400 mt-1">•</span>
-                                                <span>
-                                                    <strong>Calinski-Harabasz:</strong> Valores más altos indican mejor separación entre clusters.
-                                                </span>
-                                            </li>
-                                        </ul>
+                                    <div className="space-y-4">
+                                        {distribucionData.clusters.map((cluster) => (
+                                            <div key={cluster.cluster} className="bg-slate-800/50 rounded-lg p-6">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <h3 className="text-lg font-semibold text-white">Cluster {cluster.cluster}</h3>
+                                                    <div className="text-right">
+                                                        <p className="text-2xl font-bold text-indigo-400">{cluster.porcentaje}%</p>
+                                                        <p className="text-sm text-slate-400">{cluster.cantidad} clientes</p>
+                                                    </div>
+                                                </div>
+                                                <div className="w-full bg-slate-700 rounded-full h-3">
+                                                    <div
+                                                        className="bg-indigo-600 h-3 rounded-full transition-all"
+                                                        style={{ width: `${cluster.porcentaje}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {activeReport === "distribucion" && distribucionData && (
-                            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
-                                <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
-                                    <BarChart3 className="w-6 h-6 text-indigo-400" />
-                                    Distribución de Clusters
-                                </h2>
+                            {activeReport === "perfil" && perfilData && (
+                                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
+                                    <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
+                                        <Users className="w-6 h-6 text-indigo-400" />
+                                        Perfil Numérico de Clusters
+                                    </h2>
 
-                                <div className="mb-6">
-                                    <p className="text-lg text-slate-300">
-                                        Total de clientes: <span className="font-bold text-white">{distribucionData.total_clientes}</span>
-                                    </p>
-                                </div>
+                                    <div className="space-y-6">
+                                        {perfilData.clusters.map((cluster) => (
+                                            <div key={cluster.cluster} className="bg-slate-800/50 rounded-lg p-6">
+                                                <h3 className="text-xl font-semibold text-white mb-4">Cluster {cluster.cluster}</h3>
 
-                                <div className="space-y-4">
-                                    {distribucionData.clusters.map((cluster) => (
-                                        <div key={cluster.cluster} className="bg-slate-800/50 rounded-lg p-6">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <h3 className="text-lg font-semibold text-white">Cluster {cluster.cluster}</h3>
-                                                <div className="text-right">
-                                                    <p className="text-2xl font-bold text-indigo-400">{cluster.porcentaje}%</p>
-                                                    <p className="text-sm text-slate-400">{cluster.cantidad} clientes</p>
+                                                <div className="grid md:grid-cols-3 gap-4">
+                                                    <div className="bg-slate-900/50 rounded p-4">
+                                                        <p className="text-xs text-slate-400 mb-1">Frecuencia de Compra</p>
+                                                        <p className="text-lg font-bold text-white">{cluster.frecuencia_compra.toFixed(2)}</p>
+                                                    </div>
+
+                                                    <div className="bg-slate-900/50 rounded p-4">
+                                                        <p className="text-xs text-slate-400 mb-1">Monto Total Gastado</p>
+                                                        <p className="text-lg font-bold text-white">${cluster.monto_total_gastado.toFixed(2)}</p>
+                                                    </div>
+
+                                                    <div className="bg-slate-900/50 rounded p-4">
+                                                        <p className="text-xs text-slate-400 mb-1">Monto Promedio</p>
+                                                        <p className="text-lg font-bold text-white">${cluster.monto_promedio_compra.toFixed(2)}</p>
+                                                    </div>
+
+                                                    <div className="bg-slate-900/50 rounded p-4">
+                                                        <p className="text-xs text-slate-400 mb-1">Días desde Última Compra</p>
+                                                        <p className="text-lg font-bold text-white">
+                                                            {cluster.dias_desde_ultima_compra.toFixed(0)} días
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="bg-slate-900/50 rounded p-4">
+                                                        <p className="text-xs text-slate-400 mb-1">Antigüedad del Cliente</p>
+                                                        <p className="text-lg font-bold text-white">
+                                                            {cluster.antiguedad_cliente_meses.toFixed(0)} meses
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="bg-slate-900/50 rounded p-4">
+                                                        <p className="text-xs text-slate-400 mb-1">Productos Distintos</p>
+                                                        <p className="text-lg font-bold text-white">
+                                                            {cluster.numero_productos_distintos.toFixed(0)}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="w-full bg-slate-700 rounded-full h-3">
-                                                <div
-                                                    className="bg-indigo-600 h-3 rounded-full transition-all"
-                                                    style={{ width: `${cluster.porcentaje}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {activeReport === "perfil" && perfilData && (
-                            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
-                                <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
-                                    <Users className="w-6 h-6 text-indigo-400" />
-                                    Perfil Numérico de Clusters
-                                </h2>
+                            {activeReport === "resenas" && resenasData && (
+                                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
+                                    <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
+                                        <MessageSquare className="w-6 h-6 text-indigo-400" />
+                                        Análisis de Reseñas por Cluster
+                                    </h2>
 
-                                <div className="space-y-6">
-                                    {perfilData.clusters.map((cluster) => (
-                                        <div key={cluster.cluster} className="bg-slate-800/50 rounded-lg p-6">
-                                            <h3 className="text-xl font-semibold text-white mb-4">Cluster {cluster.cluster}</h3>
-
-                                            <div className="grid md:grid-cols-3 gap-4">
-                                                <div className="bg-slate-900/50 rounded p-4">
-                                                    <p className="text-xs text-slate-400 mb-1">Frecuencia de Compra</p>
-                                                    <p className="text-lg font-bold text-white">{cluster.frecuencia_compra.toFixed(2)}</p>
+                                    <div className="space-y-6">
+                                        {resenasData.clusters.map((cluster) => (
+                                            <div key={cluster.cluster} className="bg-slate-800/50 rounded-lg p-6">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h3 className="text-xl font-semibold text-white">Cluster {cluster.cluster}</h3>
+                                                    <p className="text-sm text-slate-400">{cluster.cantidad_reseñas} reseñas</p>
                                                 </div>
 
-                                                <div className="bg-slate-900/50 rounded p-4">
-                                                    <p className="text-xs text-slate-400 mb-1">Monto Total Gastado</p>
-                                                    <p className="text-lg font-bold text-white">${cluster.monto_total_gastado.toFixed(2)}</p>
-                                                </div>
-
-                                                <div className="bg-slate-900/50 rounded p-4">
-                                                    <p className="text-xs text-slate-400 mb-1">Monto Promedio</p>
-                                                    <p className="text-lg font-bold text-white">${cluster.monto_promedio_compra.toFixed(2)}</p>
-                                                </div>
-
-                                                <div className="bg-slate-900/50 rounded p-4">
-                                                    <p className="text-xs text-slate-400 mb-1">Días desde Última Compra</p>
-                                                    <p className="text-lg font-bold text-white">
-                                                        {cluster.dias_desde_ultima_compra.toFixed(0)} días
-                                                    </p>
-                                                </div>
-
-                                                <div className="bg-slate-900/50 rounded p-4">
-                                                    <p className="text-xs text-slate-400 mb-1">Antigüedad del Cliente</p>
-                                                    <p className="text-lg font-bold text-white">
-                                                        {cluster.antiguedad_cliente_meses.toFixed(0)} meses
-                                                    </p>
-                                                </div>
-
-                                                <div className="bg-slate-900/50 rounded p-4">
-                                                    <p className="text-xs text-slate-400 mb-1">Productos Distintos</p>
-                                                    <p className="text-lg font-bold text-white">
-                                                        {cluster.numero_productos_distintos.toFixed(0)}
-                                                    </p>
+                                                <div>
+                                                    <p className="text-sm text-slate-400 mb-3">Palabras más frecuentes:</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {cluster.palabras_frecuentes.slice(0, 10).map(([palabra, frecuencia], idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className="px-4 py-2 bg-indigo-900/30 border border-indigo-800/50 rounded-full"
+                                                            >
+                                                                <span className="text-white font-semibold">{palabra}</span>
+                                                                <span className="text-indigo-400 ml-2">({frecuencia})</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {activeReport === "resenas" && resenasData && (
-                            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
-                                <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
-                                    <MessageSquare className="w-6 h-6 text-indigo-400" />
-                                    Análisis de Reseñas por Cluster
-                                </h2>
+                            {activeReport === "descripciones" && descripcionesData && (
+                                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
+                                    <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
+                                        <FileText className="w-6 h-6 text-indigo-400" />
+                                        Descripciones de Clusters
+                                    </h2>
 
-                                <div className="space-y-6">
-                                    {resenasData.clusters.map((cluster) => (
-                                        <div key={cluster.cluster} className="bg-slate-800/50 rounded-lg p-6">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <h3 className="text-xl font-semibold text-white">Cluster {cluster.cluster}</h3>
-                                                <p className="text-sm text-slate-400">{cluster.cantidad_reseñas} reseñas</p>
+                                    <div className="space-y-4">
+                                        {descripcionesData.clusters.map((cluster) => (
+                                            <div key={cluster.cluster} className="bg-slate-800/50 rounded-lg p-6">
+                                                <h3 className="text-lg font-semibold text-indigo-400 mb-3">Cluster {cluster.cluster}</h3>
+                                                <p className="text-slate-300 leading-relaxed">{cluster.descripcion}</p>
                                             </div>
-
-                                            <div>
-                                                <p className="text-sm text-slate-400 mb-3">Palabras más frecuentes:</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {cluster.palabras_frecuentes.slice(0, 10).map(([palabra, frecuencia], idx) => (
-                                                        <div
-                                                            key={idx}
-                                                            className="px-4 py-2 bg-indigo-900/30 border border-indigo-800/50 rounded-full"
-                                                        >
-                                                            <span className="text-white font-semibold">{palabra}</span>
-                                                            <span className="text-indigo-400 ml-2">({frecuencia})</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-
-                        {activeReport === "descripciones" && descripcionesData && (
-                            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-8">
-                                <h2 className="text-2xl font-semibold text-white mb-6 flex items-center gap-2">
-                                    <FileText className="w-6 h-6 text-indigo-400" />
-                                    Descripciones de Clusters
-                                </h2>
-
-                                <div className="space-y-4">
-                                    {descripcionesData.clusters.map((cluster) => (
-                                        <div key={cluster.cluster} className="bg-slate-800/50 rounded-lg p-6">
-                                            <h3 className="text-lg font-semibold text-indigo-400 mb-3">Cluster {cluster.cluster}</h3>
-                                            <p className="text-slate-300 leading-relaxed">{cluster.descripcion}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </>
+                            )}
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

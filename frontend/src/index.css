@@ -1,1 +1,8 @@
 @import "tailwindcss";
+
+.export-pdf,
+.export-pdf * {
+  background-color: rgb(2, 6, 23) !important; /* slate-950 */
+  color: rgb(226, 232, 240) !important;       /* slate-200 */
+  border-color: rgb(51, 65, 85) !important;   /* slate-700 */
+}
