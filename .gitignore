@@ -1,1 +1,6 @@
 node_modules/
+venv/
+InsightCluster/entrenamiento/__pycache__/
+InsightCluster/procesamiento/__pycache__/
+InsightCluster/utils/__pycache__/
+InsightCluster/reportes/__pycache__/
