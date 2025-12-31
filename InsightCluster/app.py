@@ -6,6 +6,13 @@ import os
 from utils.nltk_utils import descargar_recursos_nltk
 from procesamiento.limpieza_datos import limpiar_datos, columnas_esperadas
 from entrenamiento.entrenamiento import entrenar_kmeans
+from reportes.reportes import (
+    reporte_eficiencia_modelo,
+    reporte_distribucion_clusters,
+    reporte_perfil_numerico,
+    reporte_analisis_reseñas,
+    reporte_descripciones_clusters
+)
 
 descargar_recursos_nltk()
 
@@ -77,6 +84,46 @@ def entrenar():
             "error": "Error durante el entrenamiento",
             "detalle": str(e)
         }), 500
+
+
+@app.route("/reportes/eficiencia-modelo", methods=["GET"])
+def eficiencia_modelo():
+    try:
+        return jsonify(reporte_eficiencia_modelo(resultado_entrenamiento)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/reportes/distribucion-clusters", methods=["GET"])
+def distribucion_clusters():
+    try:
+        return jsonify(reporte_distribucion_clusters(resultado_entrenamiento)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/reportes/perfil-numerico", methods=["GET"])
+def perfil_numerico():
+    try:
+        return jsonify(reporte_perfil_numerico(resultado_entrenamiento)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/reportes/analisis-reseñas", methods=["GET"])
+def analisis_reseñas():
+    try:
+        return jsonify(reporte_analisis_reseñas(resultado_entrenamiento)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/reportes/descripciones", methods=["GET"])
+def descripciones():
+    try:
+        return jsonify(reporte_descripciones_clusters(resultado_entrenamiento)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
     app.run(debug=True)
